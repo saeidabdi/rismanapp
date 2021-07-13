@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Chat;
 use App\group_stu;
 use App\Http\Controllers\FirebaseController;
-
 use App\Stu;
+use App\helper\Tools;
 use Illuminate\Http\Request;
 
 class ChatController extends Controller
@@ -66,5 +66,54 @@ class ChatController extends Controller
         }
 
         return 'ss';
+    }
+
+
+    public function deleteChat(Request $request)
+    {
+
+        $token = $request->token;
+        $chatId = $request->chatId;
+        $onwer = $request->onwer;
+
+
+        if ($onwer == 'stu')
+            $checkLogin = Tools::checkTokenStudent($token);
+        else
+            $checkLogin = Tools::checkTokenMosh($token);
+
+
+        if (!$checkLogin['success'])  // check Login user 
+            return response()->json($this->loginErrorArr);
+
+        $user = $checkLogin['user'];
+
+        $chat = Chat::find($chatId);
+
+
+
+        $chat->mosh_id;
+
+        if (
+            $chat &&
+            $chat->status != -1
+        ) {
+            if ($onwer == 'stu' && $chat->stu_id == $user->id) {
+                Tools::remove_chat_with_id($chatId);
+                
+                return response()->json(['success' => true]);
+
+            } else if ($onwer == 'mosh' && $chat->mosh_id == $user->code) {
+                Tools::remove_chat_with_id($chatId);
+
+                return response()->json(['success' => true]);
+
+            } else
+                return response()->json(['success' => false]);
+
+        }
+
+
+        return response()->json(['success' => false]);
     }
 }

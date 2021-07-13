@@ -1834,11 +1834,93 @@ class ApiController extends Controller
             }
         }
 
+        foreach ($stuSend as $key => $value) {
+            $sum_details = DB::table('edu_plan')
+                ->where('week_id', $week_id)
+                ->where('stu_id', $value->id)
+                ->select('test_time', 'study_time', 'test_count', 'l_id', 'Pre_reading', 'exercise', 'Summarizing', 'passage', 'Repeat_test')->get();
+            if (empty($sum_details)) {
+                $sum_details = (object)[
+                    "h_study" => 0,
+                    "h_test" => 0,
+                    "h_sum" => 0,
+                ];
+            } else {
+                $stuSend[$key]->h_study = 0;
+                $stuSend[$key]->h_test = 0;
+                $stuSend[$key]->SumTestNum = 0;
+                foreach ($sum_details as $key2 => $value2) {
+                    if ($value2->test_count) {
+                        $stuSend[$key]->SumTestNum += $value2->test_count;
+                    }
+                    if ($value2->test_time && strpos($value2->test_time, ':')) {
+                        $stuSend[$key]->h_test += explode(':', $value2->test_time)[0] * 3600;
+                        $stuSend[$key]->h_test += explode(':', $value2->test_time)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_test += $value2->test_time * 3600;
+                    }
+                    if ($value2->study_time && strpos($value2->study_time, ':')) {
+                        $stuSend[$key]->h_study += explode(':', $value2->study_time)[0] * 3600;
+                        $stuSend[$key]->h_study += explode(':', $value2->study_time)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_study += $value2->study_time * 3600;
+                    }
+                    if ($value2->Pre_reading && strpos($value2->Pre_reading, ':')) {
+                        $stuSend[$key]->h_study += explode(':', $value2->Pre_reading)[0] * 3600;
+                        $stuSend[$key]->h_study += explode(':', $value2->Pre_reading)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_study += $value2->Pre_reading * 3600;
+                    }
+                    if ($value2->exercise && strpos($value2->exercise, ':')) {
+                        $stuSend[$key]->h_study += explode(':', $value2->exercise)[0] * 3600;
+                        $stuSend[$key]->h_study += explode(':', $value2->exercise)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_study += $value2->exercise * 3600;
+                    }
+                    if ($value2->Summarizing && strpos($value2->Summarizing, ':')) {
+                        $stuSend[$key]->h_study += explode(':', $value2->Summarizing)[0] * 3600;
+                        $stuSend[$key]->h_study += explode(':', $value2->Summarizing)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_study += $value2->Summarizing * 3600;
+                    }
+                    if ($value2->passage && strpos($value2->passage, ':')) {
+                        $stuSend[$key]->h_study += explode(':', $value2->passage)[0] * 3600;
+                        $stuSend[$key]->h_study += explode(':', $value2->passage)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_study += $value2->passage * 3600;
+                    }
+                    if ($value2->Repeat_test && strpos($value2->Repeat_test, ':')) {
+                        $stuSend[$key]->h_study += explode(':', $value2->Repeat_test)[0] * 3600;
+                        $stuSend[$key]->h_study += explode(':', $value2->Repeat_test)[1] * 60;
+                    } else {
+                        $stuSend[$key]->h_study += $value2->Repeat_test * 3600;
+                    }
+                }
+                $stuSend[$key]->h_sum = $stuSend[$key]->h_study + $stuSend[$key]->h_test;
+
+                $total_minutes = floor($stu[$key]->h_sum / 60);
+                $hours = floor($total_minutes / 60);
+                $minutes = $total_minutes % 60;
+                $stuSend[$key]->h_sum = $hours . ' : ' . $minutes;
+
+                $total_minutes2 = floor($stuSend[$key]->h_study / 60);
+                $hours2 = floor($total_minutes2 / 60);
+                $minutes2 = $total_minutes2 % 60;
+                $stuSend[$key]->h_study = $hours2 . ' : ' . $minutes2;
+
+                $total_minutes3 = floor($stuSend[$key]->h_test / 60);
+                $hours3 = floor($total_minutes3 / 60);
+                $minutes3 = $total_minutes3 % 60;
+                $stuSend[$key]->h_test = $hours3 . ' : ' . $minutes3;
+            }
+        }
+
         // تعداد چت های جدید برای مشاور
         $new_chat = Chat::where('view', 0)
             ->where('mosh_id', $mosh_id)
             ->where('current', 1)
             ->count();
+
 
         // تعداد درخواست های جدید برنامه برای مشاور
         $new_planing = DB::table('history_planing')
@@ -1849,6 +1931,7 @@ class ApiController extends Controller
 
         return response()->json(['all' => [
             'stu' => $stu,
+            'stuSend' => $stuSend,
             'new_chat' => $new_chat,
             'new_planning' => $new_planing,
             'mosh' => $mosh,
@@ -1918,6 +2001,7 @@ class ApiController extends Controller
 
         $all_message = Chat::where('stu_id', $stu_id)
             ->where('mosh_id', $mosh_id)
+            ->where('status',1)
             // get with lasy load
             ->orderBy('id', 'desc')->get();
 

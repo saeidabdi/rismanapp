@@ -2,6 +2,7 @@
 
 namespace App\helper;
 
+use App\Chat;
 use App\StudySum;
 use DB;
 
@@ -81,11 +82,11 @@ class Tools
     public static function sumStudyTime_2_secound_in_2day_between($eduArr)
     {
 
-       
+
         foreach ($eduArr->h as $key2 => $value2) {
 
             $eduArr->test_count += $value2->test_count;
-            
+
             if ($value2->test_time && strpos($value2->test_time, ':')) {
                 $eduArr->h_org += explode(':', $value2->test_time)[0] * 3600;
                 $eduArr->h_org += explode(':', $value2->test_time)[1] * 60;
@@ -148,7 +149,15 @@ class Tools
         // }
 
         return $student;
-        
     }
 
+    public static function remove_chat_with_id($chatId)
+    {
+        Chat::where('id', $chatId)
+            ->update([
+                'status' => -1
+            ]);
+
+        return 1;
+    }
 }

@@ -4,4 +4,6 @@
         update public.chat set text = '/chat/img/' || text
 	WHERE isimg = 1;
 
-2.
+
+version pgsql 9.2.24
+password postgres = g4kgt/+#NT
