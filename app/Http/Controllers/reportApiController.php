@@ -33,7 +33,7 @@ class reportApiController extends Controller
             ->select('id', 'name', 'base_id', 'r_id', 'img')
             ->get();
 
-        if ($students->count > 0) {
+        if ($students->count() > 0) {
 
             $studentsIds = [];
 
@@ -50,7 +50,7 @@ class reportApiController extends Controller
                 $students[$i]->sumStudy_S1 = 0;
                 $students[$i]->sumStudy_S2 = 0;
 
-                if ($resultWeek1->count > 0)
+                if ($resultWeek1->count() > 0)
                     foreach ($resultWeek1  as $j => $value) { // Survey and get sum second time first week
 
                         if (
@@ -66,12 +66,9 @@ class reportApiController extends Controller
                     }
 
 
-                if ($resultWeek2->count > 0)
+                if ($resultWeek2->count() > 0)
                     foreach ($resultWeek2  as $j => $value) { // Survey and get sum second time latter week
 
-
-
-                        
                         if (
                             $value->stu_id ==  $stu->id &&
                             $value->h_sum &&
