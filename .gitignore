@@ -13,3 +13,8 @@ yarn-error.log
 .env
 document.txt
 .phpunit.result.cache
+/public/chat/img
+/public/chat/voice
+/public/chat/document
+/public/excels
+/public/planfiles
