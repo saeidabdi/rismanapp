@@ -119,6 +119,7 @@ Route::group(['prefix' => 'api'], function () {
     Route::post('/SetTokenFirebaseMosh','FirebaseController@SetTokenFirebaseMosh');
     // ----------ChatController
     Route::post('/GroupChat','ChatController@GroupChat');
+    Route::post('/deleteChat','ChatController@deleteChat');
 
 
     // reportApiController
