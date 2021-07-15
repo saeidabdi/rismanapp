@@ -7,10 +7,14 @@ use App\helper\Tools;
 use App\Stu;
 use App\StudySum;
 use DB;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\UsersExport;
+use App\Exports\SutExport;
 
 class reportApiController extends Controller
 
 {
+
     public function report2weekly(Request $request)
     {
 
@@ -26,12 +30,14 @@ class reportApiController extends Controller
         $teacher = $checkLogin['user'];
 
         $students = Stu::where('mosh_id', $teacher->code)
-        ->select('id','name','base_id','r_id','img')
-        ->get();
+            ->select('id', 'name', 'base_id', 'r_id', 'img')
+            ->get();
 
         $studentsIds = [];
 
-        foreach ($students as $value) { array_push($studentsIds,$value->id); }
+        foreach ($students as $value) {
+            array_push($studentsIds, $value->id);
+        }
 
         $resultWeek1 = Tools::weeklyResultSum($weekId1, $studentsIds);
 
@@ -56,7 +62,7 @@ class reportApiController extends Controller
                 }
             }
 
-            foreach ($resultWeek2  as $j => $value) {// Survey and get sum second time latter week
+            foreach ($resultWeek2  as $j => $value) { // Survey and get sum second time latter week
 
                 if (
                     $value->stu_id ==  $stu->id &&
@@ -70,19 +76,50 @@ class reportApiController extends Controller
                 }
             }
 
-            $students[$i]->Progress = (($students[$i]->sumStudy_S2 / $students[$i]->sumStudy_S1)-1) * 100;
-            $students[$i]->Progress = round($students[$i]->Progress,2);
+            $students[$i]->Progress = $students[$i]->sumStudy_S2 - $students[$i]->sumStudy_S1;
+
+            $students[$i]->growth = '+';
+
+            if ($students[$i]->sumStudy_S2 < $students[$i]->sumStudy_S1)
+                $students[$i]->growth = '-';
+
+            $students[$i]->Progress = Tools::convertSecond_2_hours(abs($students[$i]->Progress));
 
             $students[$i]->sumStudy1 = Tools::convertSecond_2_hours($students[$i]->sumStudy_S1);
             $students[$i]->sumStudy2 = Tools::convertSecond_2_hours($students[$i]->sumStudy_S2);
-            
         }
 
 
         return response()->json([
-            
+
             'students' => $students,
 
         ]);
+    }
+
+    public function excelReport2weekly(Request $request)
+    {
+        $token = $request->token;
+        $weekId1 = $request->weekId1;
+        $weekId2 = $request->weekId2;
+
+        $checkLogin = Tools::checkTokenMosh($token);
+
+        if (!$checkLogin['success'])  // check Login user 
+            return response()->json($this->loginErrorArr);
+
+        $teacher = $checkLogin['user'];
+
+        $excelFileName = time() . 'w' . $weekId1 . 'w' . $weekId2 . '.xls';
+
+        Excel::store(new SutExport($weekId1, $weekId2, $teacher), 'excels/' . $excelFileName, 'exel_store');
+
+        return response()->json([
+
+            'success' => true,
+            'address' => 'excels/' . $excelFileName,
+
+        ]);
+
     }
 }

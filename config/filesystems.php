@@ -64,6 +64,11 @@ return [
             'url' => env('AWS_URL'),
         ],
 
+        'exel_store' => [
+            'driver' => 'local',
+            'root' => public_path(''),
+        ],
+
     ],
 
 ];

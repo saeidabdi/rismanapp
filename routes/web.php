@@ -123,4 +123,5 @@ Route::group(['prefix' => 'api'], function () {
 
     // reportApiController
     Route::post('/report2weekly','reportApiController@report2weekly');
+    Route::post('/excelReport2weekly','reportApiController@excelReport2weekly');
 });

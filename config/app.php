@@ -149,6 +149,7 @@ return [
         Hekmatinasser\Verta\VertaServiceProvider::class,
         // Barryvdh\DomPDF\ServiceProvider::class,
         niklasravnsborg\LaravelPdf\PdfServiceProvider::class,
+        Maatwebsite\Excel\ExcelServiceProvider::class,
         /*
          * Package Service Providers...
          */
@@ -213,6 +214,7 @@ return [
         'Verta' => Hekmatinasser\Verta\Verta::class,
         // 'PDF' => Barryvdh\DomPDF\Facade::class,
         'PDF' => niklasravnsborg\LaravelPdf\Facades\Pdf::class,
+        'Excel' => Maatwebsite\Excel\Facades\Excel::class,
     ],
 
 ];
