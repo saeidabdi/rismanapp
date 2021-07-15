@@ -50,33 +50,36 @@ class reportApiController extends Controller
                 $students[$i]->sumStudy_S1 = 0;
                 $students[$i]->sumStudy_S2 = 0;
 
-                foreach ($resultWeek1  as $j => $value) { // Survey and get sum second time first week
+                if ($resultWeek1->count > 0)
+                    foreach ($resultWeek1  as $j => $value) { // Survey and get sum second time first week
 
-                    if (
-                        $value->stu_id ==  $stu->id &&
-                        $value->h_sum &&
-                        explode(':', $value->h_sum)[0]
-                    ) {
-                        $students[$i]->sumStudy_S1 += explode(':', $value->h_sum)[0] * 3600;
+                        if (
+                            $value->stu_id ==  $stu->id &&
+                            $value->h_sum &&
+                            explode(':', $value->h_sum)[0]
+                        ) {
+                            $students[$i]->sumStudy_S1 += explode(':', $value->h_sum)[0] * 3600;
 
-                        if (explode(':', $value->h_sum)[1])
-                            $students[$i]->sumStudy_S1 += explode(':', $value->h_sum)[1] * 60;
+                            if (explode(':', $value->h_sum)[1])
+                                $students[$i]->sumStudy_S1 += explode(':', $value->h_sum)[1] * 60;
+                        }
                     }
-                }
 
-                foreach ($resultWeek2  as $j => $value) { // Survey and get sum second time latter week
 
-                    if (
-                        $value->stu_id ==  $stu->id &&
-                        $value->h_sum &&
-                        explode(':', $value->h_sum)[0]
-                    ) {
-                        $students[$i]->sumStudy_S2 += explode(':', $value->h_sum)[0] * 3600;
+                if ($resultWeek2->count > 0)
+                    foreach ($resultWeek2  as $j => $value) { // Survey and get sum second time latter week
 
-                        if (explode(':', $value->h_sum)[1])
-                            $students[$i]->sumStudy_S2 += explode(':', $value->h_sum)[1] * 60;
+                        if (
+                            $value->stu_id ==  $stu->id &&
+                            $value->h_sum &&
+                            explode(':', $value->h_sum)[0]
+                        ) {
+                            $students[$i]->sumStudy_S2 += explode(':', $value->h_sum)[0] * 3600;
+
+                            if (explode(':', $value->h_sum)[1])
+                                $students[$i]->sumStudy_S2 += explode(':', $value->h_sum)[1] * 60;
+                        }
                     }
-                }
 
                 $students[$i]->Progress = $students[$i]->sumStudy_S2 - $students[$i]->sumStudy_S1;
 
