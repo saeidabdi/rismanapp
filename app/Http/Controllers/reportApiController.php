@@ -69,6 +69,9 @@ class reportApiController extends Controller
                 if ($resultWeek2->count > 0)
                     foreach ($resultWeek2  as $j => $value) { // Survey and get sum second time latter week
 
+
+
+                        
                         if (
                             $value->stu_id ==  $stu->id &&
                             $value->h_sum &&
