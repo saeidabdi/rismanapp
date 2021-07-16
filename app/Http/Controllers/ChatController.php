@@ -88,32 +88,25 @@ class ChatController extends Controller
 
         $user = $checkLogin['user'];
 
-        $chat = Chat::find($chatId);
-
-
-
-        $chat->mosh_id;
+        $chat = Chat::where('id', $chatId)->first();
 
         if (
-            $chat &&
+            $chat->count() >= 0 &&
             $chat->status != -1
         ) {
             if ($onwer == 'stu' && $chat->stu_id == $user->id) {
                 Tools::remove_chat_with_id($chatId);
-                
-                return response()->json(['success' => true]);
 
+                return response()->json(['success' => true]);
             } else if ($onwer == 'mosh' && $chat->mosh_id == $user->code) {
                 Tools::remove_chat_with_id($chatId);
 
                 return response()->json(['success' => true]);
-
             } else
-                return response()->json(['success' => false]);
-
+                return response()->json(['success' => false, 'mes' => ' عدم دسترسی']);
         }
 
 
-        return response()->json(['success' => false]);
+        return response()->json(['success' => false, 'mes' => 'پیامی وجود ندارد']);
     }
 }
