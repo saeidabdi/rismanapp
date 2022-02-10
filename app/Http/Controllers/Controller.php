@@ -20,11 +20,11 @@ class Controller extends BaseController
         $option = Options::where('type',5)->first();
         $this->appname = $option->vlaue;
         // نسخه اپ دانش آموز
-        $this->VersionStu = 1.12;
-        $this->UrlVersionStu = 'http://app-web.ir';
+        $this->VersionStu = 3;
+        $this->UrlVersionStu = 'https://rismanapp.ir/app-student.apk';
         // نسخه اپ مشاور
-        $this->VersionMosh = 1.12;
-        $this->UrlVersionMosh = 'http://app-web.ir';
+        $this->VersionMosh = 3;
+        $this->UrlVersionMosh = 'https://rismanapp.ir/app-adviser.apk';
 
 
         $this->loginError = 'عدم سطح دسترسی';

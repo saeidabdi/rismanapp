@@ -358,14 +358,25 @@ class ApiController extends Controller
         // چک کردن حالت خودکار بودن مشاور
         if ($mosh) {
             if ($mosh->auto == 1) {
+
                 $AllMesGrade = DB::table('automati_messaging')
                     ->where('mosh_id', $mosh->code)
                     ->get();
+
                 $h_sum = explode(':', $h_sum)[0];
+
                 foreach ($AllMesGrade as $key => $value) {
                     $grade = explode(';', $value->grade);
                     if (($grade[1] >= $h_sum) && ($grade[0] <= $h_sum)) {
                         // sleep(2 * 60);
+
+                        $chatExist = Chat::where('text', $value->message)
+                            ->where('date_time', '>', time() - 80000) // حدود 22 ساعت
+                            ->first();
+
+                        if ($chatExist)
+                            return;
+
                         Chat::insert([
                             'stu_id' => $stu_id,
                             'mosh_id' => $mosh->code,
@@ -399,8 +410,11 @@ class ApiController extends Controller
         $week_id = $request->week_id;
         $clickday = $request->clickDay;
         $stu_id = explode(';', $request->token)[1];
+
         $stu = Stu::where('id', explode(';', $request->token)[1])->first();
+
         $normal = StudySum::where('stu_id', $stu_id)->where('day', $clickday)->where('week_id', $week_id)->first();
+
         if ($normal == null) {
             $normal = 3;
         }
@@ -412,8 +426,15 @@ class ApiController extends Controller
                 ->leftJoin('lesson', 'edu_plan.l_id', '=', 'lesson.id')
                 ->select('edu_plan.l_id as lesson_id', 'edu_plan.stu_id', 'edu_plan.study_time', 'edu_plan.test_time', 'edu_plan.test_count as test_num', 'lesson.title as lessonName', 'edu_plan.Pre_reading', 'edu_plan.exercise', 'edu_plan.Summarizing', 'edu_plan.passage', 'edu_plan.Repeat_test', 'edu_plan.c_r_test')
                 ->get();
+
+
             if (empty($edu[0])) {
-                $lesson = Lesson::where('base_id', $stu->base_id)->where('r_id', $stu->r_id)->get();
+
+                $lesson = Lesson::where('base_id', $stu->base_id)
+                    ->where('r_id', $stu->r_id)
+                    ->orderBy('priority')
+                    ->get();
+
                 foreach ($lesson as $key => $value) {
                     $edu[$key] = (object)[
                         'lessonName' => $lesson[$key]->title,
@@ -450,8 +471,13 @@ class ApiController extends Controller
                 ->leftJoin('lesson', 'edu_plan.l_id', '=', 'lesson.id')
                 ->select('edu_plan.l_id as lesson_id', 'edu_plan.stu_id', 'edu_plan.study_time', 'edu_plan.test_time', 'edu_plan.test_count as test_num', 'lesson.title as lessonName', 'edu_plan.Pre_reading', 'edu_plan.exercise', 'edu_plan.Summarizing', 'edu_plan.passage', 'edu_plan.Repeat_test', 'edu_plan.c_r_test')
                 ->get();
+
             if (empty($edu[0])) {
-                $lesson = Lesson::where('base_id', $stu->base_id)->where('r_id', $stu->r_id)->get();
+                $lesson = Lesson::where('base_id', $stu->base_id)
+                    ->where('r_id', $stu->r_id)
+                    ->orderBy('priority')
+                    ->get();
+
                 foreach ($lesson as $key => $value) {
                     $edu[$key] = (object)[
                         'lessonName' => $lesson[$key]->title,
@@ -489,7 +515,12 @@ class ApiController extends Controller
     public function get_plan_stu(Request $request)
     {
         $stu = Stu::where('id', explode(';', $request->token)[1])->first();
-        $lesson = Lesson::where('base_id', $stu->base_id)->where('r_id', $stu->r_id)->get();
+
+        $lesson = Lesson::where('base_id', $stu->base_id)
+            ->where('r_id', $stu->r_id)
+            ->orderBy('priority')
+            ->get();
+
         $weekly = DB::table('weekly')
             ->where('weekly.stu_id', explode(';', $request->token)[1])
             ->select('weekly.*')
@@ -550,17 +581,33 @@ class ApiController extends Controller
 
     public function send_plan_stu(Request $request)
     {
+
         $mosh = Mosh::where('code', $request->mosh_id)->first();
         if ($mosh) {
             $data = json_decode($request->data, true);
+
             $stu_id = explode(';', $request->token)[1];
+
             $stu = Stu::where('id', $stu_id)->first();
+
+            if ($request->file) {
+                $imageName = time() . '.' . $request->file->getClientOriginalExtension();
+
+                $imagePath = public_path() . '/images/profile/' . $stu;
+
+                $request->file->move($imagePath, $imageName);
+                $stu->img = $imagePath . '/' . $imageName;
+            }
+
+
             $stu->nation_code = $request->nation_code;
             $stu->name = $request->name;
             $stu->mosh_id = $request->mosh_id;
             $stu->status = 3;
             $stu->update();
+
             DB::table('weekly')->where('stu_id', $stu_id)->delete();
+
             foreach ($data as $key => $value) {
                 for ($i = 1; $i < 6; $i++) {
                     $week = DB::table('weekly')->insert([
@@ -571,7 +618,11 @@ class ApiController extends Controller
                     ]);
                 }
             }
-            return response()->json(['data' => $data[0], 'mes' => 'امروز', 'success' => 'yes']);
+            return response()->json([
+                'data' => $data[0],
+                'mes' => 'امروز',
+                'success' => 'yes',
+            ]);
         }
         return response()->json(['success' => 'no']);
     }
@@ -579,22 +630,52 @@ class ApiController extends Controller
     // هفته ها
     public function all_week(Request $request)
     {
-        $weeks = DB::table('edu_plan')->where('stu_id', explode(';', $request->token)[1])
-            ->groupBy('week_id')->select('week_id', DB::raw('count(*) as total'))->get();
-        $week_ids = array();
-        foreach ($weeks as $key => $value) {
-            array_push($week_ids, $value->week_id);
-        }
+        $stu_id =  explode(';', $request->token)[1];
 
-        $stu_week = DB::table('week')->whereIn('id', $week_ids)->orderBy('id', 'desc')->get();
-        $week_ids = array_reverse($week_ids);
+        $stu_week = DB::table('edu_plan')
+            ->where('edu_plan.stu_id', $stu_id)
+            ->groupBy('edu_plan.week_id')
+            ->orderBy('edu_plan.week_id', 'desc')
+            // ->leftJoin('week','','')
+            ->select('week_id')
+            ->get();
+
+
+        // $week_ids = array();
+
+        // foreach ($stu_week as $key => $value){
+        // }
+
+
+        // $week_ids = array_reverse($week_ids);
+
+        // $stu_week = DB::table('week')->whereIn('id', $week_ids)->orderBy('id', 'desc')->get();
+
+
         foreach ($stu_week as $key => $value) {
-            $stu_week[$key]->h = DB::table('edu_plan')->where('stu_id', explode(';', $request->token)[1])->where('week_id', $week_ids[$key])
-                ->select('test_time', 'study_time', 'test_count', 'Pre_reading', 'exercise', 'Summarizing', 'passage', 'Repeat_test')->get();
+
+            $weekData = week::where('id', $value->week_id)->first();
+
+            $stu_week[$key]->start = $value->start = $weekData->start;
+            $stu_week[$key]->end = $value->end = $weekData->end;
+
+            $stu_week[$key]->h = DB::table('edu_plan')
+                ->where('stu_id', $stu_id)
+                ->where('week_id', $value->week_id)
+                ->select('test_time', 'study_time', 'test_count', 'Pre_reading', 'exercise', 'Summarizing', 'passage', 'Repeat_test')
+                ->get();
+
             $stu_week[$key]->h_org = 0;
+
             $stu_week[$key]->test_count = 0;
+
+            $stu_week[$key]->test_count += Tools::sumTestCount($stu_week[$key]->h);
+
             foreach ($stu_week[$key]->h as $key2 => $value2) {
-                $stu_week[$key]->test_count += $value2->test_count;
+
+                // $stu_week[$key]->test_count += $value2->test_count;
+                // $stu_week[$key]->test_count += Tools::sumTestCount($value2);
+
                 if ($value2->test_time && strpos($value2->test_time, ':')) {
                     $stu_week[$key]->h_org += explode(':', $value2->test_time)[0] * 3600;
                     $stu_week[$key]->h_org += explode(':', $value2->test_time)[1] * 60;
@@ -638,6 +719,7 @@ class ApiController extends Controller
                     $stu_week[$key]->h_org += $value2->Repeat_test * 3600;
                 }
             }
+
             $total_minutes = floor($stu_week[$key]->h_org / 60);
             $hours = floor($total_minutes / 60);
             $minutes = $total_minutes % 60;
@@ -648,6 +730,7 @@ class ApiController extends Controller
             $stu_week[$key]->start = $start->formatJalaliDate();
             $stu_week[$key]->end = $end->formatJalaliDate();
         }
+
         return response()->json(['all_week' => $stu_week]);
     }
 
@@ -655,6 +738,7 @@ class ApiController extends Controller
     {
         $stu_id = explode(';', $request->token)[1];
         $stu = Stu::where('id', explode(';', $request->token)[1])->first();
+
         $edu = DB::table('edu_plan')
             ->where('edu_plan.stu_id', $stu_id)
             ->where('edu_plan.day', $request->clickDay)
@@ -662,6 +746,61 @@ class ApiController extends Controller
             ->leftJoin('lesson', 'edu_plan.l_id', '=', 'lesson.id')
             ->select('edu_plan.l_id as lesson_id', 'edu_plan.stu_id', 'edu_plan.study_time', 'edu_plan.test_time', 'edu_plan.test_count as test_num', 'lesson.title as lessonName', 'edu_plan.Pre_reading', 'edu_plan.exercise', 'edu_plan.Summarizing', 'edu_plan.passage', 'edu_plan.Repeat_test', 'edu_plan.c_r_test')
             ->get();
+
+        $normal = DB::table('sum_study')
+            ->where('stu_id', $stu_id)->where('day', $request->clickDay)
+            ->where('week_id', $request->week_id)->first();
+
+        // به دست آوردن جمع روزانه ساعت و تعداد تست 
+        $SumTestNum = 0;
+        $SumTestRepeat = 0;
+        foreach ($edu as $key => $value) {
+            $SumTestNum += $value->test_num;
+            $SumTestRepeat += $value->c_r_test;
+        }
+
+        if (empty($edu[0])) {
+            $lesson = Lesson::where('base_id', $stu->base_id)->where('r_id', $stu->r_id)->get();
+            foreach ($lesson as $key => $value) {
+                $edu[$key] = (object)[
+                    'lessonName' => $lesson[$key]->title,
+                    'stu_id' => $stu_id,
+                    'lesson_id' => $lesson[$key]->id,
+                    'study_time' => null,
+                    'test_time' => null,
+                    'test_num' => null,
+                    'Pre_reading' => null,
+                    'exercise' => null,
+                    'Summarizing' => null,
+                    'passage' => null,
+                    'Repeat_test' => null,
+                    'c_r_test' => null,
+                ];
+            }
+        }
+
+        $n = Verta::createTimestamp(time());
+        if ($edu) {
+            if ($normal) {
+                return response()->json(['mes' => '', 'edu' => $edu, 'h_org' => $normal->h_sum, 'SumTestNum' => $SumTestNum, 'SumTestRepeat' => $SumTestRepeat, 'normal' => $normal->normal]);
+            }
+            return response()->json(['mes' => '', 'edu' => $edu, 'h_org' => 0, 'SumTestNum' => $SumTestNum, 'SumTestRepeat' => $SumTestRepeat, 'normal' => 1]);
+        }
+    }
+
+    public function get_day_week_mosh(Request $request)
+    {
+        $stu_id = $request->stu_id;
+        $stu = Stu::where('id', $stu_id)->first();
+        
+        $edu = DB::table('edu_plan')
+            ->where('edu_plan.stu_id', $stu_id)
+            ->where('edu_plan.day', $request->clickDay)
+            ->where('edu_plan.week_id', $request->week_id)
+            ->leftJoin('lesson', 'edu_plan.l_id', '=', 'lesson.id')
+            ->select('edu_plan.l_id as lesson_id', 'edu_plan.stu_id', 'edu_plan.study_time', 'edu_plan.test_time', 'edu_plan.test_count as test_num', 'lesson.title as lessonName', 'edu_plan.Pre_reading', 'edu_plan.exercise', 'edu_plan.Summarizing', 'edu_plan.passage', 'edu_plan.Repeat_test', 'edu_plan.c_r_test')
+            ->get();
+
         $normal = DB::table('sum_study')
             ->where('stu_id', $stu_id)->where('day', $request->clickDay)
             ->where('week_id', $request->week_id)->first();
@@ -719,7 +858,8 @@ class ApiController extends Controller
     {
         $stu_id = explode(';', $request->token)[1];
 
-        $weeks = DB::table('edu_plan')->where('stu_id', $stu_id)
+        $weeks = DB::table('edu_plan')
+            ->where('stu_id', $stu_id)
             ->groupBy('week_id')
             ->select(
                 'week_id'
@@ -731,10 +871,29 @@ class ApiController extends Controller
 
         foreach ($weeks as $key => $value) {
             $weeks[$key]->sum = 0;
+            $weeks[$key]->testNumber = 0;
+
             $days = StudySum::where('stu_id', $stu_id)
                 ->where('week_id', $value->week_id)->get();
 
+            $falgGETedu = 0;
+
             foreach ($days as $key2 => $value2) {
+
+                if ($value2->testNumber && $value2->testNumber >= 0 && $value2->testNumber != null) {
+                    $weeks[$key]->testNumber += $value2->testNumber;
+                } else if ($falgGETedu == 0) {
+
+                    $allWeekDays_sumTest = Edu::where('week_id', $value->week_id)
+                        ->where('stu_id', $stu_id)
+                        // ->where('day',$value->day)
+                        ->get();
+
+                    $falgGETedu = 1;
+
+                    $weeks[$key]->testNumber = Tools::sumTestCount($allWeekDays_sumTest);
+                }
+
                 if ($value2->h_sum && strpos($value2->h_sum, ':')) {
                     $weeks[$key]->sum += explode(':', $value2->h_sum)[0] * 3600;
                     $weeks[$key]->sum += explode(':', $value2->h_sum)[1] * 60;
@@ -742,11 +901,80 @@ class ApiController extends Controller
                     $weeks[$key]->sum += $value2->h_sum * 3600;
                 }
             }
+
             $total_minutes = floor($weeks[$key]->sum / 60);
+
             $hours = floor($total_minutes / 60);
+
             $minutes = $total_minutes % 60;
+
             $weeks[$key]->sum = $hours . ':' . $minutes;
+
             $num = week::where('id', $value->week_id)->first();
+
+            $weeks[$key]->num = $num->num;
+        }
+
+        return response()->json(['improvement_chart' => $weeks]);
+    }
+    public function report_time_study_mosh(Request $request)
+    {
+        $stu_id = $request->stu_id;
+
+        $weeks = DB::table('edu_plan')
+            ->where('stu_id', $stu_id)
+            ->groupBy('week_id')
+            ->select(
+                'week_id'
+            )
+            ->limit(10)
+            ->orderBy('week_id', 'desc')
+            ->get();
+
+
+        foreach ($weeks as $key => $value) {
+            $weeks[$key]->sum = 0;
+            $weeks[$key]->testNumber = 0;
+
+            $days = StudySum::where('stu_id', $stu_id)
+                ->where('week_id', $value->week_id)->get();
+
+            $falgGETedu = 0;
+
+            foreach ($days as $key2 => $value2) {
+
+                if ($value2->testNumber && $value2->testNumber >= 0 && $value2->testNumber != null) {
+                    $weeks[$key]->testNumber += $value2->testNumber;
+                } else if ($falgGETedu == 0) {
+
+                    $allWeekDays_sumTest = Edu::where('week_id', $value->week_id)
+                        ->where('stu_id', $stu_id)
+                        // ->where('day',$value->day)
+                        ->get();
+
+                    $falgGETedu = 1;
+
+                    $weeks[$key]->testNumber = Tools::sumTestCount($allWeekDays_sumTest);
+                }
+
+                if ($value2->h_sum && strpos($value2->h_sum, ':')) {
+                    $weeks[$key]->sum += explode(':', $value2->h_sum)[0] * 3600;
+                    $weeks[$key]->sum += explode(':', $value2->h_sum)[1] * 60;
+                } else {
+                    $weeks[$key]->sum += $value2->h_sum * 3600;
+                }
+            }
+
+            $total_minutes = floor($weeks[$key]->sum / 60);
+
+            $hours = floor($total_minutes / 60);
+
+            $minutes = $total_minutes % 60;
+
+            $weeks[$key]->sum = $hours . ':' . $minutes;
+
+            $num = week::where('id', $value->week_id)->first();
+
             $weeks[$key]->num = $num->num;
         }
 
@@ -763,6 +991,257 @@ class ApiController extends Controller
             ->where('stu_id', $stu_id)->where('week_id', $week_id)
             ->select('test_time', 'study_time', 'l_id', 'Pre_reading', 'exercise', 'Summarizing', 'passage', 'Repeat_test')->get();
         $lessons = Lesson::where('base_id', $stu->base_id)->where('r_id', $stu->r_id)->get();
+
+        $sum = 0;
+        $SumExclusive = 0;
+        $SumGeneral = 0;
+        $arrayGeneral = [];
+        $arrayExclusive = array();
+        $lessonGids = [];
+        $lessonEids = [];
+
+        foreach ($days_part as $key2 => $value2) {
+            foreach ($lessons as $key => $value) {
+                if ($value->id == $value2->l_id) {
+                    if ($value2->study_time && strpos($value2->study_time, ':')) {
+                        $lessons[$key]['study_time'] +=  explode(':', $value2->study_time)[0] * 3600;
+                        $lessons[$key]['study_time'] +=  explode(':', $value2->study_time)[1] * 60;
+                    } else {
+                        $lessons[$key]['study_time'] +=  $value2->study_time * 3600;
+                    }
+                    if ($value2->test_time && strpos($value2->test_time, ':')) {
+                        $lessons[$key]['test_time'] += explode(':', $value2->test_time)[0] * 3600;
+                        $lessons[$key]['test_time'] += explode(':', $value2->test_time)[1] * 60;
+                    } else {
+                        $lessons[$key]['test_time'] += $value2->test_time * 3600;
+                    }
+                    if ($value2->Pre_reading && strpos($value2->Pre_reading, ':')) {
+                        $lessons[$key]['Pre_reading'] += explode(':', $value2->Pre_reading)[0] * 3600;
+                        $lessons[$key]['Pre_reading'] += explode(':', $value2->Pre_reading)[1] * 60;
+                    } else {
+                        $lessons[$key]['Pre_reading'] += $value2->Pre_reading * 3600;
+                    }
+                    if ($value2->exercise && strpos($value2->exercise, ':')) {
+                        $lessons[$key]['exercise'] += explode(':', $value2->exercise)[0] * 3600;
+                        $lessons[$key]['exercise'] += explode(':', $value2->exercise)[1] * 60;
+                    } else {
+                        $lessons[$key]['exercise'] += $value2->exercise * 3600;
+                    }
+                    if ($value2->Summarizing && strpos($value2->Summarizing, ':')) {
+                        $lessons[$key]['Summarizing'] += explode(':', $value2->Summarizing)[0] * 3600;
+                        $lessons[$key]['Summarizing'] += explode(':', $value2->Summarizing)[1] * 60;
+                    } else {
+                        $lessons[$key]['Summarizing'] += $value2->Summarizing * 3600;
+                    }
+                    if ($value2->passage && strpos($value2->passage, ':')) {
+                        $lessons[$key]['passage'] += explode(':', $value2->passage)[0] * 3600;
+                        $lessons[$key]['passage'] += explode(':', $value2->passage)[1] * 60;
+                    } else {
+                        $lessons[$key]['passage'] += $value2->passage * 3600;
+                    }
+                    if ($value2->Repeat_test && strpos($value2->Repeat_test, ':')) {
+                        $lessons[$key]['Repeat_test'] += explode(':', $value2->Repeat_test)[0] * 3600;
+                        $lessons[$key]['Repeat_test'] += explode(':', $value2->Repeat_test)[1] * 60;
+                    } else {
+                        $lessons[$key]['Repeat_test'] += $value2->Repeat_test * 3600;
+                    }
+                }
+            }
+            $lesson = Lesson::where('id', $value2->l_id)->first();
+            if ($lesson->status == 1) {
+                if (!in_array($lesson->title, $lessonEids)) {
+                    $arrayExclusive[$lesson->title] = 0;
+                    array_push($lessonEids, $lesson->title);
+                }
+                if ($value2->study_time && strpos($value2->study_time, ':')) {
+                    $SumExclusive +=  explode(':', $value2->study_time)[0] * 3600;
+                    $SumExclusive +=  explode(':', $value2->study_time)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->study_time)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->study_time)[1] * 60;
+                } else {
+                    $SumExclusive +=  $value2->study_time * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->study_time * 3600;
+                }
+                if ($value2->test_time && strpos($value2->test_time, ':')) {
+                    $SumExclusive +=  explode(':', $value2->test_time)[0] * 3600;
+                    $SumExclusive +=  explode(':', $value2->test_time)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->test_time)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->test_time)[1] * 60;
+                } else {
+                    $SumExclusive +=  $value2->test_time * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->test_time * 3600;
+                }
+                if ($value2->Pre_reading && strpos($value2->Pre_reading, ':')) {
+                    $SumExclusive += explode(':', $value2->Pre_reading)[0] * 3600;
+                    $SumExclusive += explode(':', $value2->Pre_reading)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->Pre_reading)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->Pre_reading)[1] * 60;
+                } else {
+                    $SumExclusive += $value2->Pre_reading * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->Pre_reading * 3600;
+                }
+                if ($value2->exercise && strpos($value2->exercise, ':')) {
+                    $SumExclusive += explode(':', $value2->exercise)[0] * 3600;
+                    $SumExclusive += explode(':', $value2->exercise)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->exercise)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->exercise)[1] * 60;
+                } else {
+                    $SumExclusive += $value2->exercise * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->exercise * 3600;
+                }
+                if ($value2->Summarizing && strpos($value2->Summarizing, ':')) {
+                    $SumExclusive += explode(':', $value2->Summarizing)[0] * 3600;
+                    $SumExclusive += explode(':', $value2->Summarizing)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->Summarizing)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->Summarizing)[1] * 60;
+                } else {
+                    $SumExclusive += $value2->Summarizing * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->Summarizing * 3600;
+                }
+                if ($value2->passage && strpos($value2->passage, ':')) {
+                    $SumExclusive += explode(':', $value2->passage)[0] * 3600;
+                    $SumExclusive += explode(':', $value2->passage)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->passage)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->passage)[1] * 60;
+                } else {
+                    $SumExclusive += $value2->passage * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->passage * 3600;
+                }
+                if ($value2->Repeat_test && strpos($value2->Repeat_test, ':')) {
+                    $SumExclusive += explode(':', $value2->Repeat_test)[0] * 3600;
+                    $SumExclusive += explode(':', $value2->Repeat_test)[1] * 60;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->Repeat_test)[0] * 3600;
+                    $arrayExclusive[$lesson->title] += explode(':', $value2->Repeat_test)[1] * 60;
+                } else {
+                    $SumExclusive += $value2->Repeat_test * 3600;
+                    $arrayExclusive[$lesson->title] += $value2->Repeat_test * 3600;
+                }
+            } else {
+                if (!in_array($lesson->title, $lessonGids)) {
+                    $arrayGeneral[$lesson->title][0] = 0;
+                    array_push($lessonGids, $lesson->title);
+                }
+                if ($value2->test_time && strpos($value2->test_time, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->test_time)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->test_time)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->test_time * 3600;
+                }
+                if ($value2->study_time && strpos($value2->study_time, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->study_time)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->study_time)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->study_time * 3600;
+                }
+                if ($value2->Pre_reading && strpos($value2->Pre_reading, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->Pre_reading)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->Pre_reading)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->Pre_reading * 3600;
+                }
+                if ($value2->exercise && strpos($value2->exercise, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->exercise)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->exercise)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->exercise * 3600;
+                }
+                if ($value2->Summarizing && strpos($value2->Summarizing, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->Summarizing)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->Summarizing)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->Summarizing * 3600;
+                }
+                if ($value2->passage && strpos($value2->passage, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->passage)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->passage)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->passage * 3600;
+                }
+                if ($value2->Repeat_test && strpos($value2->Repeat_test, ':')) {
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->Repeat_test)[0] * 3600;
+                    $arrayGeneral[$lesson->title][0] += explode(':', $value2->Repeat_test)[1] * 60;
+                } else {
+                    $arrayGeneral[$lesson->title][0] += $value2->Repeat_test * 3600;
+                }
+            }
+            if ($value2->test_time && strpos($value2->test_time, ':')) {
+                $sum += explode(':', $value2->test_time)[0] * 3600;
+                $sum += explode(':', $value2->test_time)[1] * 60;
+            } else {
+                $sum += $value2->test_time * 3600;
+            }
+            if ($value2->study_time && strpos($value2->study_time, ':')) {
+                $sum += explode(':', $value2->study_time)[0] * 3600;
+                $sum += explode(':', $value2->study_time)[1] * 60;
+            } else {
+                $sum += $value2->study_time * 3600;
+            }
+            if ($value2->Pre_reading && strpos($value2->Pre_reading, ':')) {
+                $sum += explode(':', $value2->Pre_reading)[0] * 3600;
+                $sum += explode(':', $value2->Pre_reading)[1] * 60;
+            } else {
+                $sum += $value2->Pre_reading * 3600;
+            }
+            if ($value2->exercise && strpos($value2->exercise, ':')) {
+                $sum += explode(':', $value2->exercise)[0] * 3600;
+                $sum += explode(':', $value2->exercise)[1] * 60;
+            } else {
+                $sum += $value2->exercise * 3600;
+            }
+            if ($value2->Summarizing && strpos($value2->Summarizing, ':')) {
+                $sum += explode(':', $value2->Summarizing)[0] * 3600;
+                $sum += explode(':', $value2->Summarizing)[1] * 60;
+            } else {
+                $sum += $value2->Summarizing * 3600;
+            }
+            if ($value2->passage && strpos($value2->passage, ':')) {
+                $sum += explode(':', $value2->passage)[0] * 3600;
+                $sum += explode(':', $value2->passage)[1] * 60;
+            } else {
+                $sum += $value2->passage * 3600;
+            }
+            if ($value2->Repeat_test && strpos($value2->Repeat_test, ':')) {
+                $sum += explode(':', $value2->Repeat_test)[0] * 3600;
+                $sum += explode(':', $value2->Repeat_test)[1] * 60;
+            } else {
+                $sum += $value2->Repeat_test * 3600;
+            }
+        }
+        // جمع عمومی ها
+        $SumGeneral = $sum - $SumExclusive;
+        $total_minutes3 = floor($SumGeneral / 60);
+        $hours3 = floor($total_minutes3 / 60);
+        $minutes3 = $total_minutes3 % 60;
+        $SumGeneral = $hours3 . '.' . $minutes3;
+        // sum all
+        $total_minutes = floor($sum / 60);
+        $hours = floor($total_minutes / 60);
+        $minutes = $total_minutes % 60;
+        $sum = $hours . '.' . $minutes;
+        // جمع تخصصی ها
+        $total_minutes2 = floor($SumExclusive / 60);
+        $hours2 = floor($total_minutes2 / 60);
+        $minutes2 = $total_minutes2 % 60;
+        $SumExclusive = $hours2 . '.' . $minutes2;
+
+        $num_week = Week::where('id', $week_id)->first();
+        $num = $num_week->num;
+
+        return response()->json(['sum' => $sum, 'SumExclusive' => $SumExclusive, 'SumGeneral' => $SumGeneral, 'arrayGeneral' => $arrayGeneral, 'arrayExclusive' => $arrayExclusive, 'lessons' => $lessons]);
+    }
+
+    public function detail_report_mosh(Request $request)
+    {
+        $stu_id = $request->stu_id;
+        $stu = Stu::where('id', $stu_id)->first();
+        $week_id = $request->week_id;
+
+        $days_part = DB::table('edu_plan')
+            ->where('stu_id', $stu_id)->where('week_id', $week_id)
+            ->select('test_time', 'study_time', 'l_id', 'Pre_reading', 'exercise', 'Summarizing', 'passage', 'Repeat_test')->get();
+
+        $lessons = Lesson::where('base_id', $stu->base_id)->where('r_id', $stu->r_id)->get();
+
         $sum = 0;
         $SumExclusive = 0;
         $SumGeneral = 0;
@@ -1053,6 +1532,72 @@ class ApiController extends Controller
         } else {
             foreach ($days as $key => $value) {
                 $sum = StudySum::where('stu_id', explode(';', $request->token)[1])
+                    ->where('week_id', $value->week_id)
+                    ->where('day', $value->day)
+                    ->select('h_sum', 'normal')
+                    ->first();
+
+                $days[$key]->sumStudyTime = $sum->h_sum;
+                $days[$key]->normal = $sum->normal;
+
+                $n = Verta::createTimestamp((int)$days[$key]->date_time);
+                $days[$key]->date_time = $n->formatDatetime();
+            }
+        }
+
+        return response()->json(['days' => $days]);
+    }
+    public function all_day_between_mosh(Request $request)
+    {
+        $date1 = Verta::parse($request->date1 . ' ' . '00:00:01');
+        $date2 = Verta::parse($request->date2 . ' ' . '23:59:00');
+
+        $date1 = $date1->timestamp;
+        $date2 = $date2->timestamp;
+
+        $lesson_id = $request->lessonId;
+
+        $stuId = $request->stu_id;
+
+        $days = DB::table('edu_plan')
+            ->where('stu_id', $stuId)
+            ->where('date_time', '>=', $date1)
+            ->where('date_time', '<=', $date2)
+            ->groupBy('date_time', 'day', 'week_id')
+            ->select(
+                'date_time',
+                'day',
+                'week_id',
+                DB::raw('count(*) as total')
+            )
+            ->get();
+
+        if ($lesson_id) {
+            foreach ($days as $key => $value) {
+
+                $days[$key]->h = DB::table('edu_plan')
+                    ->where('stu_id', $stuId)
+                    ->where('week_id', $value->week_id)
+                    ->where('day', $value->day)
+                    ->where('l_id', $lesson_id)
+                    ->select('test_time', 'study_time', 'test_count', 'Pre_reading', 'exercise', 'Summarizing', 'passage', 'Repeat_test')
+                    ->get();
+
+                $days[$key]->h_org = 0;
+                $days[$key]->test_count = 0;
+
+                $days[$key] = Tools::sumStudyTime_2_secound_in_2day_between($days[$key]);
+
+                $days[$key]->sumStudyTime = Tools::convertSecond_2_hours($days[$key]->h_org);
+
+                $n = Verta::createTimestamp((int)$days[$key]->date_time);
+                $days[$key]->date_time = $n->formatDatetime();
+
+                $days[$key]->h = null;
+            }
+        } else {
+            foreach ($days as $key => $value) {
+                $sum = StudySum::where('stu_id', $stuId)
                     ->where('week_id', $value->week_id)
                     ->where('day', $value->day)
                     ->select('h_sum', 'normal')
@@ -1491,14 +2036,14 @@ class ApiController extends Controller
         $chats = Chat::where('stu_id', $stu_id)
             ->where('mosh_id', $mosh->code)
             ->where('type', 1)
-            ->whereNot('status', -1)
+            ->where('status', '!=', -1)
             ->orderBy('id', 'desc')
             ->get();
 
         Chat::where('stu_id', $stu_id)
             ->where('mosh_id', $mosh->code)
             ->where('current', 0)
-            ->whereNot('status', -1)
+            ->where('status', '!=', -1)
             ->orderBy('id', 'desc')
             ->limit('20')
             ->update([
@@ -1566,7 +2111,7 @@ class ApiController extends Controller
                 $text = $request->text;
             }
             $notification = new FirebaseController;
-            $notification->spn($mosh->FirebaseToken, $title, $text);
+            $notification->spnMosh($mosh->FirebaseToken, $title, $text);
             return response()->json(['send_status' => 'ok']);
         }
     }
@@ -1900,7 +2445,12 @@ class ApiController extends Controller
                 }
                 $stuSend[$key]->h_sum = $stuSend[$key]->h_study + $stuSend[$key]->h_test;
 
-                $total_minutes = floor($stu[$key]->h_sum / 60);
+                // if (!$stuSend[$key]->h_sum){
+                //     $stuSend[$key]->h_sum = '0:0';
+                //     $stuSend[$key]->h_study = '0:0';
+                //     $stuSend[$key]->h_test = '0:0';
+                // }else {
+                $total_minutes = floor($stuSend[$key]->h_sum / 60);
                 $hours = floor($total_minutes / 60);
                 $minutes = $total_minutes % 60;
                 $stuSend[$key]->h_sum = $hours . ' : ' . $minutes;
@@ -1914,6 +2464,7 @@ class ApiController extends Controller
                 $hours3 = floor($total_minutes3 / 60);
                 $minutes3 = $total_minutes3 % 60;
                 $stuSend[$key]->h_test = $hours3 . ' : ' . $minutes3;
+                // }
             }
         }
 
@@ -2087,7 +2638,7 @@ class ApiController extends Controller
             }
             $notification = new FirebaseController;
 
-            $notification->spn($stu->FirebaseToken, $title, $text);
+            $notification->spnMosh($stu->FirebaseToken, $title, $text);
 
             return response()->json(['send_status' => 'ok']);
         }
@@ -2450,49 +3001,128 @@ class ApiController extends Controller
         ]);
     }
 
-    public function spn(Request $request)
+    public function forgetPassword(Request $request)
     {
-        define('API_ACCESS_KEY', 'AAAA5A9yUBA:APA91bFk-CpbGen9myhgF5OC70LlGFKl0E627vECR9wP3sE9fXiqtl-vVQIqzwpEBEfIFSL2gnpwDx7sX757Xg9AVEBlvJF0DF5X0h_D-NzOYSG1MMnmxteaTjRWBkRp_E7gXJnXuCeG');
+        $mobile = $request->mobile;
 
-        $fcmUrl = "https://fcm.googleapis.com/fcm/send";
+        $limit_Try_second = 120; // 2 minute
 
-        $token = $request->token;
+        $checkExist = DB::table('smslog')
+            ->where('mobile', $mobile)
+            ->where('time_added', '>=', time() - $limit_Try_second)
+            ->first();
 
+        if ($checkExist) {
+            return response()->json(['success' => false]);
+        }
 
-        $notification = [
-            'title' => 'پیام از طرف دانش آموز علی اصغری : ',
-            'body' => 'سلام آقای حسنی ببخشید بابت دیروز نتونستم به 9 ساعت مطالعه برسونم ولی فردا حتما سعی میکنم انجامش بدم',
-            'text' => 'تکست تستی',
-            'icon' => 'ic_notification',
-            'sound' => 'mySound'
-        ];
+        $code = rand(99999, 1000000);
 
-        $extraNotificationData = ["message" => $notification, "moredata" => 'dd'];
+        DB::table('smslog')
+            ->insert([
+                'mobile' => $mobile,
+                'code' => $code,
+                'time_added' => time(),
+            ]);
 
-        $fcmNotification = [
-            //'registration_ids' => $tokenList, //multple token array
-            'to'        => $token, //single token
-            'notification' => $notification,
-            'data' => $extraNotificationData
-        ];
+        try {
+            $api = new \Kavenegar\KavenegarApi("7A71544551417865657250637655412F616E4D54617146454159347A59672F33");
+            $sender = "10008663";
+            $message = $code;
+            $receptor = $mobile;
+            $result2 = $api->VerifyLookup($receptor, $message, '', '', 'verify');
+            // $result = $api->Send($sender, $receptor, $message);
 
-        $headers = [
-            'Authorization: key=' . API_ACCESS_KEY,
-            'Content-Type: application/json'
-        ];
+        } catch (\Kavenegar\Exceptions\ApiException $e) {
+            echo $e->errorMessage();
+        } catch (\Kavenegar\Exceptions\HttpException $e) {
+            echo $e->errorMessage();
+        }
 
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $fcmUrl);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fcmNotification));
-        $result = curl_exec($ch);
-        curl_close($ch);
-
-
-        return $result;
+        return response()->json(['success' => true]);
     }
+
+    public function checkDisposablePassword(Request $request)
+    {
+        $mobile = $request->mobile;
+        $code = $request->code;
+
+        $limit_Try_second = 300; // 5 minute
+
+        $checkExist = DB::table('smslog')
+            ->where('mobile', $mobile)
+            ->where('code', $code)
+            // ->where('time_added', '<=', time() - $limit_Try_second)
+            ->first();
+
+        if ($checkExist) {
+            DB::table('smslog')->update([
+                'used' => 1
+            ]);
+
+            return response()->json(['success' => true]);
+        }
+        return response()->json(['success' => false]);
+    }
+
+    public function chengePassword(Request $request)
+    {
+        $pass = $request->pass;
+
+        $mobile = $request->mobile;
+
+        DB::table('stu')
+            ->where('mobile', $mobile)
+            ->update([
+                'pass' => $pass,
+            ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    // public function spn(Request $request)
+    // {
+    //     define('API_ACCESS_KEY', 'AAAA5A9yUBA:APA91bFk-CpbGen9myhgF5OC70LlGFKl0E627vECR9wP3sE9fXiqtl-vVQIqzwpEBEfIFSL2gnpwDx7sX757Xg9AVEBlvJF0DF5X0h_D-NzOYSG1MMnmxteaTjRWBkRp_E7gXJnXuCeG');
+
+    //     $fcmUrl = "https://fcm.googleapis.com/fcm/send";
+
+    //     $token = $request->token;
+
+
+    //     $notification = [
+    //         'title' => 'پیام از طرف دانش آموز علی اصغری : ',
+    //         'body' => 'سلام آقای حسنی ببخشید بابت دیروز نتونستم به 9 ساعت مطالعه برسونم ولی فردا حتما سعی میکنم انجامش بدم',
+    //         'text' => 'تکست تستی',
+    //         'icon' => 'ic_notification',
+    //         'sound' => 'mySound'
+    //     ];
+
+    //     $extraNotificationData = ["message" => $notification, "moredata" => 'dd'];
+
+    //     $fcmNotification = [
+    //         //'registration_ids' => $tokenList, //multple token array
+    //         'to'        => $token, //single token
+    //         'notification' => $notification,
+    //         'data' => $extraNotificationData
+    //     ];
+
+    //     $headers = [
+    //         'Authorization: key=' . API_ACCESS_KEY,
+    //         'Content-Type: application/json'
+    //     ];
+
+
+    //     $ch = curl_init();
+    //     curl_setopt($ch, CURLOPT_URL, $fcmUrl);
+    //     curl_setopt($ch, CURLOPT_POST, true);
+    //     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    //     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    //     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($fcmNotification));
+    //     $result = curl_exec($ch);
+    //     curl_close($ch);
+
+
+    //     return $result;
+    // }
 }

@@ -61,6 +61,8 @@
                             <div class="form-group">
                                 <label class="label cat_lable">پایه</label>
                                 <select class="form-control" v-model="paye_id" @change="()=>{reshte_id=''}">
+                                    <option value="4">هفتم</option>
+                                    <option value="5">هشتم</option>
                                     <option value="0">نهم</option>
                                     <option value="1">دهم</option>
                                     <option value="2">یازدهم</option>
@@ -68,7 +70,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div v-if="paye_id != 0" class="col-md-4 right" style="padding-top: 10px;">
+                        <div v-if="paye_id != 0 && paye_id != 4 && paye_id != 5" class="col-md-4 right" style="padding-top: 10px;">
                             <div class="form-group">
                                 <label class="label cat_lable">رشته</label>
                                 <select class="form-control" v-model="reshte_id">

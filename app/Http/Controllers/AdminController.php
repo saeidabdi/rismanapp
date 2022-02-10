@@ -176,7 +176,10 @@ class AdminController extends Controller
 
     public function get_lesson(Request $request)
     {
-        $all_lesson = Lesson::where('base_id', $request->p_id)->where('r_id', $request->r_id)->orderBy('priority')->get();
+        $all_lesson = Lesson::where('base_id', $request->p_id)
+        ->where('r_id', $request->r_id)
+        ->orderBy('priority')
+        ->get();
 
         return response()->json($all_lesson);
     }

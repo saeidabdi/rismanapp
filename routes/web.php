@@ -10,6 +10,7 @@
 | contains the "web" middleware group. Now create something great!
 |
 */
+use App\Http\Middleware\CheckStatus;
 
 Route::get('/', 'AdminController@login');
 Route::post('/login', 'AdminController@login_admin');
@@ -55,12 +56,15 @@ Route::group(['prefix' => 'api'], function () {
     Route::get('/test', 'ApiController@test');
     Route::post('/all_week', 'ApiController@all_week');
     Route::post('/get_day_week', 'ApiController@get_day_week');
+    Route::post('/get_day_week_mosh', 'ApiController@get_day_week_mosh');
     Route::post('/get_status', 'ApiController@get_status');
     Route::post('/send_plan_stu', 'ApiController@send_plan_stu');
     Route::post('/get_profile', 'ApiController@get_profile');
     Route::post('/show_planing', 'ApiController@show_planing');
     Route::post('/report_time_study', 'ApiController@report_time_study');
+    Route::post('/report_time_study_mosh', 'ApiController@report_time_study_mosh');
     Route::post('/all_day_between', 'ApiController@all_day_between');
+    Route::post('/all_day_between_mosh', 'ApiController@all_day_between_mosh');
     Route::post('/show_price', 'ApiController@show_price');
     Route::post('/get_chat', 'ApiController@get_chat');
     Route::post('/send_chat', 'ApiController@send_chat');
@@ -70,6 +74,9 @@ Route::group(['prefix' => 'api'], function () {
     Route::get('/buyback','ApiController@buyback');
     Route::get('/backapp','ApiController@backapp');
     Route::post('/get_plannig_list','ApiController@get_plannig_list');
+    Route::post('/forgetPassword','ApiController@forgetPassword');
+    Route::post('/checkDisposablePassword','ApiController@checkDisposablePassword');
+    Route::post('/chengePassword','ApiController@chengePassword');
     // -------------------------------------- moshaver ----------------
     Route::post('/get_stu_mosh','ApiController@get_stu_mosh');
     Route::post('/show_all_message','ApiController@show_all_message');
@@ -93,6 +100,7 @@ Route::group(['prefix' => 'api'], function () {
     Route::post('/GetNumChatStu','ApiController@GetNumChatStu');
     Route::post('/GetNumChatMosh','ApiController@GetNumChatMosh');
     Route::post('/detail_report','ApiController@detail_report');
+    Route::post('/detail_report_mosh','ApiController@detail_report_mosh');
     // ----------MoshController
     Route::post('/get_ms_mosh','MoshController@get_ms_mosh');
     Route::post('/get_automati_message','MoshController@get_automati_message');
@@ -125,4 +133,8 @@ Route::group(['prefix' => 'api'], function () {
     // reportApiController
     Route::post('/report2weekly','reportApiController@report2weekly');
     Route::post('/excelReport2weekly','reportApiController@excelReport2weekly');
+});
+
+Route::middleware([CheckStatus::class])->group(function(){
+    
 });

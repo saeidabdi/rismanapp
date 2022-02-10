@@ -160,4 +160,20 @@ class Tools
 
         return 1;
     }
+
+    public static function sumTestCount($arrayEdu)
+    {
+        $sum = 0;
+
+        if (count($arrayEdu) > 0) {
+
+            foreach ($arrayEdu as $key => $value) {
+
+                if ($value->test_count)
+                    $sum += $value->test_count;
+            }
+        }
+
+        return $sum;
+    }
 }
