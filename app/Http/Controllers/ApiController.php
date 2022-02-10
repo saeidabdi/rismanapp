@@ -1491,12 +1491,14 @@ class ApiController extends Controller
         $chats = Chat::where('stu_id', $stu_id)
             ->where('mosh_id', $mosh->code)
             ->where('type', 1)
+            ->whereNot('status', -1)
             ->orderBy('id', 'desc')
             ->get();
 
         Chat::where('stu_id', $stu_id)
             ->where('mosh_id', $mosh->code)
             ->where('current', 0)
+            ->whereNot('status', -1)
             ->orderBy('id', 'desc')
             ->limit('20')
             ->update([
@@ -2001,7 +2003,7 @@ class ApiController extends Controller
 
         $all_message = Chat::where('stu_id', $stu_id)
             ->where('mosh_id', $mosh_id)
-            ->where('status',1)
+            ->where('status', 1)
             // get with lasy load
             ->orderBy('id', 'desc')->get();
 
@@ -2036,7 +2038,7 @@ class ApiController extends Controller
         $mosh_id = $mosh->code;
 
         $stu = Tools::getStuWithId($stu_id);
-        
+
         $typeFile = $request->typeFile; // image==1 voice==2 document==3 
 
         $chat = new Chat;
